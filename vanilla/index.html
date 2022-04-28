@@ -1,0 +1,31 @@
+<head>
+    <script src="./index.js"></script>
+    <link rel="stylesheet" href="./index.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+    <div id="ScrollerOuter">
+        <div id="Scroller">
+            <div id="ScrollerInner"></div>
+        </div>
+    </div>
+    <script>
+        // element generator for each item of array
+        const generator = item => {
+            const element = document.createElement('div')
+            element.className = 'ScrollerItem'
+            element.innerHTML = item.title
+            element.style.backgroundColor = item.color
+            element.style.backgroundImage = `url(${item.image})`
+            return element
+        }
+        // callback event for each item of array
+        const callback = item => {
+            console.log('Selected', item.title, item)
+        }
+        // request list and init
+        fetch('../index.json').then(text => text.json()).then(array => {
+            Scroller.init(array, generator, callback)
+        })
+    </script>
+</body>

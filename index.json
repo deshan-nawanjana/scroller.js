@@ -1,0 +1,27 @@
+[
+    {
+        "image" : "../media/browser.png",
+        "color" : "#4071d9",
+        "title" : "Browser"
+    },
+    {
+        "image" : "../media/gallery.png",
+        "color" : "#71ab50",
+        "title" : "Gallery"
+    },
+    {
+        "image" : "../media/house.png",
+        "color" : "#424242",
+        "title" : "House"
+    },
+    {
+        "image" : "../media/instagram.png",
+        "color" : "#6a4ea5",
+        "title" : "Instagram"
+    },
+    {
+        "image" : "../media/linkedin.png",
+        "color" : "#db4a35",
+        "title" : "LinkedIn"
+    }
+]
