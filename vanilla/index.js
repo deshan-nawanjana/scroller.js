@@ -1,7 +1,8 @@
 let render_mode = 'free-motion'
 let hold_offset = { then : 0, now : 0, speed : 0, touch : [] }
-let list_offset = { then : 1, now : 0 }
 let tray_offset = { then : 0, now : 0 }
+let list_offset = { then : 1, now : 0 }
+let list_target = { element : null, direction : null }
 let data_inputs = null
 
 const getEventData = event => {
@@ -37,8 +38,9 @@ const getItemRect = (root, index = 0) => {
 const dragDown = event => {
     // change render mode
     render_mode = 'user-hold'
-    // init drag speed
+    // init drag speed and target
     hold_offset.speed = 0
+    list_target.element = null
     // set origin drag position
     hold_offset.then = getEventData(event).position
 }
@@ -73,6 +75,48 @@ const dragEnd = event => {
     }
 }
 
+const getItemSelectData = (root, item) => {
+    const root_crect = root.getBoundingClientRect()
+    const item_crect = item.getBoundingClientRect()
+    const root_axis = (root_crect.right - root_crect.left) / 2
+    const item_axis = item_crect.left + item_crect.width / 2
+    const offset = tray_offset.now + (root_axis - item_axis)
+    return {
+        root_axis : root_axis,
+        item_axis : item_axis,
+        direction : item_axis < root_axis ? 'left' : 'right',
+        offset : offset
+    }
+}
+
+const speedForce = root => {
+    if(list_target.element) {
+        // select handling
+        const data = getItemSelectData(root, list_target.element)
+        // speed setup
+        if(data.item_axis < data.root_axis && list_target.direction === 'left') {
+            hold_offset.speed = +15
+        } else if(data.item_axis > data.root_axis && list_target.direction === 'right') {
+            hold_offset.speed = -15
+        }
+        // motion setup
+        if(data.direction === 'right' && tray_offset.now + hold_offset.speed > data.offset) {
+            tray_offset.now += hold_offset.speed
+        } else if(data.direction === 'left' && tray_offset.now + hold_offset.speed < data.offset) {
+            tray_offset.now += hold_offset.speed
+        } else {
+            hold_offset.speed = 0
+            tray_offset.now = data.offset
+            list_target.element = null
+        }
+    } else {
+        // auto handling
+        tray_offset.now += hold_offset.speed
+        if(hold_offset.speed > 0) { hold_offset.speed -= 0.1 }
+        if(hold_offset.speed < 0) { hold_offset.speed += 0.1 }
+    }
+}
+
 class Scroller {}
 
 Scroller.init = (array, generator, callback) => {
@@ -97,21 +141,32 @@ Scroller.init = (array, generator, callback) => {
 }
 
 Scroller.generate = root => {
+    // container axis
+    let root_crect = root.getBoundingClientRect()
+    const axis = (root_crect.right - root_crect.left) / 2
+    // generate item list
     data_inputs.array.forEach(item => {
-        root.appendChild(data_inputs.generator(item))
+        const child = data_inputs.generator(item)
+        root.appendChild(child)
+        child.addEventListener('click', () => {
+            list_target.element = child
+            const item_crect = child.getBoundingClientRect()
+            const epos = item_crect.left + item_crect.width / 2
+            if(epos < axis) { list_target.direction = 'left' }
+            if(epos > axis) { list_target.direction = 'right' }
+        })
     })
+    // set initial position
+    let item_crect = getItemRect(root, 0)
+    tray_offset.now = axis - item_crect.width / 2
 }
 
 Scroller.render = root => {
     requestAnimationFrame(() => Scroller.render(root))
-    // select render mode
-    if(render_mode === 'user-hold') {
-        // manual position from events
-    } else {
-        // animate position from speed
-        tray_offset.now += hold_offset.speed
-        if(hold_offset.speed > 0) { hold_offset.speed -= 0.1 }
-        if(hold_offset.speed < 0) { hold_offset.speed += 0.1 }
+
+    // animate position from speed
+    if(render_mode === 'free-motion') {
+        speedForce(root)
         tray_offset.then = tray_offset.now
     }
 
@@ -121,10 +176,13 @@ Scroller.render = root => {
     tray_offset.now = parseInt(tray_offset.now.toFixed(1))
 
     getItems(root).forEach((child, index, array) => {
-        let item_width = getItemRect(root, index).width
+        let root_crect = root.getBoundingClientRect()
+        let item_crect = getItemRect(root, index)
+        let item_width = item_crect.width
         let item_coord = (index * item_width) + tray_offset.now
         let list_width = array.length * item_width
 
+        // relocate overflow items
         if(item_coord < -item_width) {
             let remain = item_coord % item_width
             let offset = Math.floor(Math.abs(item_coord) / item_width)
@@ -138,7 +196,18 @@ Scroller.render = root => {
             item_coord = remain + value - item_width
         }
 
+        // set calculated position
         child.style.left = item_coord + 'px'
+
+        // set current item
+        const axis = (root_crect.right - root_crect.left) / 2
+        if(item_crect.left < axis && item_crect.right > axis) {
+            child.setAttribute('focused', '')
+        } else {
+            child.removeAttribute('focused')
+        }
     })
+
+
 
 }
