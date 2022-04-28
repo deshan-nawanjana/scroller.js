@@ -1,27 +1,37 @@
 let render_mode = 'free-motion'
-let hold_offset = { then : 0, now : 0, speed : 0, touch : 0 }
+let hold_offset = { then : 0, now : 0, speed : 0, touch : [] }
 let list_offset = { then : 1, now : 0 }
-let tray_offset = { then : 0, now : 100 }
+let tray_offset = { then : 0, now : 0 }
 let data_inputs = null
 
 const getEventData = event => {
     // calculate event data
-    const position = event.changedTouches
+    let position = event.changedTouches
         ? event.changedTouches[0].clientX
         : event.clientX
-    const speed = event.changedTouches
-        ? event.changedTouches[0].pageX - hold_offset.touch
+    let speed = event.changedTouches
+        ? null
         : event.movementX
     // store touchstart 
     if(event.type === 'touchstart') {
-        hold_offset.touch = event.changedTouches[0].pageX
+        hold_offset.touch = []
+    } else if(event.type === 'touchmove') {
+        hold_offset.touch.push(event.changedTouches[0].pageX)
+    } else if(event.type === 'touchend') {
+        speed = ((hold_offset.touch.pop() - hold_offset.touch.pop()) / 2) || 0
+    } else if(event.type === 'mouseup' || event.type === 'mouseleave') {
+        speed = hold_offset.speed
     }
     // return event data
     return { position, speed }
 }
 
-const getItemRect = (tray, index = 0) => {
-    return tray.children[index].getBoundingClientRect()
+const getItems = root => {
+    return Array.from(root.querySelectorAll('*'))
+}
+
+const getItemRect = (root, index = 0) => {
+    return root.children[index].getBoundingClientRect()
 }
 
 const dragDown = event => {
@@ -36,8 +46,9 @@ const dragDown = event => {
 const dragMove = event => {
     if(render_mode === 'user-hold') {
         // store event data
-        hold_offset.now = getEventData(event).position
-        hold_offset.speed = getEventData(event).speed * 0.5
+        const eventData = getEventData(event)
+        hold_offset.now = eventData.position
+        hold_offset.speed = eventData.speed * 0.5
         // store new tray position
         const hold_gap = hold_offset.now - hold_offset.then
         tray_offset.now = tray_offset.then + hold_gap
@@ -46,10 +57,14 @@ const dragMove = event => {
 
 const dragEnd = event => {
     if(render_mode !== 'free-motion') {
+        // store speed
+        let speed = getEventData(event).speed
         // set max speed
-        const speed = event.type === 'touchend' ? 14 : 14
-        if(hold_offset.speed > speed && hold_offset.speed > 0) { hold_offset.speed = +speed }
-        if(hold_offset.speed < speed && hold_offset.speed < 0) { hold_offset.speed = -speed }
+        const max = 14
+        if(speed > max * +1 && speed > 0) { speed = max * +1 }
+        if(speed < max * -1 && speed < 0) { speed = max * -1 }
+        // speed to value
+        hold_offset.speed = speed
         // change render mode
         render_mode = 'free-motion'
         // save current tray position
@@ -76,19 +91,19 @@ Scroller.init = (array, generator, callback) => {
     root.addEventListener('touchmove', dragMove)
     root.addEventListener('touchend', dragEnd)
     // generate items
-    Scroller.generate(tray)
+    Scroller.generate(root)
     // start render
-    Scroller.render(tray)
+    Scroller.render(root)
 }
 
-Scroller.generate = tray => {
+Scroller.generate = root => {
     data_inputs.array.forEach(item => {
-        tray.appendChild(data_inputs.generator(item))
+        root.appendChild(data_inputs.generator(item))
     })
 }
 
-Scroller.render = tray => {
-    requestAnimationFrame(() => Scroller.render(tray))
+Scroller.render = root => {
+    requestAnimationFrame(() => Scroller.render(root))
     // select render mode
     if(render_mode === 'user-hold') {
         // manual position from events
@@ -105,38 +120,25 @@ Scroller.render = tray => {
     tray_offset.then = parseFloat(tray_offset.then.toFixed(1))
     tray_offset.now = parseInt(tray_offset.now.toFixed(1))
 
-    // margin and item client rect
-    let margin = tray_offset.now
-    let width = getItemRect(tray).width
+    getItems(root).forEach((child, index, array) => {
+        let item_width = getItemRect(root, index).width
+        let item_coord = (index * item_width) + tray_offset.now
+        let list_width = array.length * item_width
 
-    // calculate margin for overflow
-    if(margin < 0) {
-        list_offset.now = Math.floor(margin / width)
-        margin = -(Math.abs(margin) % width)
-    } else if(margin > 0) {
-        list_offset.now = Math.floor(margin / width)
-        margin = (Math.abs(margin) % width) - width
-    }
+        if(item_coord < -item_width) {
+            let remain = item_coord % item_width
+            let offset = Math.floor(Math.abs(item_coord) / item_width)
+            let value = (array.length - (offset % array.length)) * item_width
+            if(value === array.length * item_width) { value = 0 }
+            item_coord = remain + value
+        } else if(item_coord > list_width - item_width) {
+            let remain = item_coord % item_width
+            let offset = Math.floor(Math.abs(item_coord - (list_width - item_width)) / item_width)
+            let value = ((offset % array.length)) * item_width
+            item_coord = remain + value - item_width
+        }
 
-    // update tray position
-    tray.style.marginLeft = margin + 'px'
+        child.style.left = item_coord + 'px'
+    })
 
-    // update list offset
-    if(list_offset.now === list_offset.then) { return }
-
-    // append or prepend clone elements
-    if(list_offset.now < list_offset.then) {
-        const first = tray.firstElementChild
-        const clone = first.cloneNode(true)
-        first.outerHTML = ''
-        tray.appendChild(clone)
-    } else {
-        const final = tray.lastElementChild
-        const clone = final.cloneNode(true)
-        final.outerHTML = ''
-        tray.prepend(clone)
-    }
-
-    // store list offset history
-    list_offset.then = list_offset.now
 }
