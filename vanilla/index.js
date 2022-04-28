@@ -1,8 +1,8 @@
 let render_mode = 'free-motion'
 let hold_offset = { then : 0, now : 0, speed : 0, touch : [], up : 0, down : 0 }
 let tray_offset = { then : 0, now : 0 }
-let list_offset = { then : 1, now : 0 }
 let list_target = { element : null, direction : null }
+let last_caller = null
 let data_inputs = null
 
 const getEventData = event => {
@@ -82,25 +82,6 @@ const dragEnd = (event, root) => {
     }
 }
 
-const findIndex = (arr, type) => {
-    let value = null
-    let index = 0
-    arr.forEach((item, i) => {
-        if(item !== null & value === null)  {
-            value = item
-            index = i
-        }
-        if(item < value && type === 'min') {
-            value = item
-            index = i
-        } else if(item > value && type === 'max') {
-            value = item
-            index = i
-        }
-    })
-    return index
-}
-
 const setNextItem = root => {
     let array = getItems(root).map(item => getItemSelectData(root, item))
     let middx = array.findIndex(x => x.centered)
@@ -148,7 +129,9 @@ const getCloseItem = root => {
 
 const callbackItem = (root, item) => {
     const index = getItems(root).indexOf(item)
+    if(index === last_caller) { return }
     data_inputs.callback(data_inputs.array[index])
+    last_caller = index
 }
 
 const speedForce = root => {
@@ -184,9 +167,12 @@ const speedForce = root => {
     }
 }
 
-class Scroller {}
+const Scroller = {}
 
 Scroller.init = (array, generator, callback) => {
+    if(Scroller.init.running) { return }
+    // init memory
+    Scroller.init.running = true
     // store input data
     data_inputs = { array, generator, callback }
     // scroller element
@@ -211,8 +197,9 @@ Scroller.generate = root => {
     let root_crect = root.getBoundingClientRect()
     const axis = (root_crect.right - root_crect.left) / 2
     // generate item list
-    data_inputs.array.forEach(item => {
+    data_inputs.array.forEach((item, index) => {
         const child = data_inputs.generator(item)
+        child.setAttribute('index', index)
         root.appendChild(child)
         child.addEventListener('click', () => {
             if(hold_offset.down === hold_offset.up) {
@@ -271,7 +258,4 @@ Scroller.render = root => {
             child.removeAttribute('focused')
         }
     })
-
-
-
 }
