@@ -19,7 +19,7 @@
         }
         // callback event for each item of array
         const callback = item => {
-            console.log('Selected', item.title, item)
+            document.body.style.backgroundColor = item.color
         }
         // request list and init
         fetch('../index.json').then(text => text.json()).then(array => {
