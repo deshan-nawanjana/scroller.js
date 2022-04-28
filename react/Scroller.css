@@ -1,0 +1,24 @@
+#Scroller {
+    width: inherit;
+    height: inherit;
+    overflow: hidden;
+    user-select: none;
+    outline: none;
+    touch-action: none;
+}
+
+#Scroller > * {
+    height: inherit;
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    overflow: hidden;
+}
+
+#Scroller * {
+    user-select: none;
+    -moz-user-select: none;
+    -webkit-user-drag: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;  
+}
